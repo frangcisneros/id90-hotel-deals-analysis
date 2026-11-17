@@ -456,9 +456,9 @@ def calculate_price_std(row, col_name):
     """
     rules = config.STANDARDIZATION_RULES
     
-    nights = row['nights'] if row['nights'] > rules['nights']['threshold'] else rules['nights']['fallback']
-    rooms = row['number_of_rooms'] if row['number_of_rooms'] > rules['number_of_rooms']['threshold'] else rules['number_of_rooms']['fallback']
-    adults = row['number_of_adults'] if row['number_of_adults'] > rules['number_of_adults']['threshold'] else rules['number_of_adults']['fallback']
+    nights = row['nights'] if row['nights'] >= rules['nights']['threshold'] else rules['nights']['fallback']
+    rooms = row['number_of_rooms'] if row['number_of_rooms'] >= rules['number_of_rooms']['threshold'] else rules['number_of_rooms']['fallback']
+    adults = row['number_of_adults'] if row['number_of_adults'] >= rules['number_of_adults']['threshold'] else rules['number_of_adults']['fallback']
     kids = row['number_of_kids']
     
     # Nueva fórmula: producto en lugar de suma
@@ -492,9 +492,9 @@ def standardize_prices(df):
     # Operaciones vectorizadas (mucho más rápido que apply)
     rules = config.STANDARDIZATION_RULES
     
-    nights = df['nights'].where(df['nights'] > rules['nights']['threshold'], rules['nights']['fallback'])
-    rooms = df['number_of_rooms'].where(df['number_of_rooms'] > rules['number_of_rooms']['threshold'], rules['number_of_rooms']['fallback'])
-    adults = df['number_of_adults'].where(df['number_of_adults'] > rules['number_of_adults']['threshold'], rules['number_of_adults']['fallback'])
+    nights = df['nights'].where(df['nights'] >= rules['nights']['threshold'], rules['nights']['fallback'])
+    rooms = df['number_of_rooms'].where(df['number_of_rooms'] >= rules['number_of_rooms']['threshold'], rules['number_of_rooms']['fallback'])
+    adults = df['number_of_adults'].where(df['number_of_adults'] >= rules['number_of_adults']['threshold'], rules['number_of_adults']['fallback'])
     kids = df['number_of_kids'].fillna(0)
     
     total_persons = (adults + kids).replace(0, 1)

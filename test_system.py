@@ -8,6 +8,32 @@ import config
 from datetime import datetime
 
 
+@pytest.fixture
+def baselines_df(tmp_path):
+    """Baselines mínimos escritos por el test (no dependen de outputs/ del repo).
+
+    Contexto usado por los tests: destino 77 / enero / semana 2 con
+    mean=150.0 y std=50.0, 120 observaciones y alta confianza.
+    """
+    baselines = pd.DataFrame({
+        'destination_final': [77, 77],
+        'destination_name': ['New York', 'New York'],
+        'month': [1, 6],
+        'week_in_month': [2, 2],
+        'mean_price_std': [150.0, 180.0],
+        'std_price_std': [50.0, 60.0],
+        'min_price_std': [60.0, 70.0],
+        'max_price_std': [320.0, 340.0],
+        'count_obs': [120, 95],
+        'low_confidence': [False, False],
+    })
+
+    baselines_path = tmp_path / "market_baselines.csv"
+    baselines.to_csv(baselines_path, index=False)
+
+    return auxiliary_functions.load_baselines(baselines_path)
+
+
 class TestStandardization:
     """Tests de estandarización de precios."""
     
@@ -21,7 +47,7 @@ class TestStandardization:
             'number_of_kids': 0
         }
         
-        result = auxiliary_functions.calcular_total_std(
+        result = auxiliary_functions.calculate_price_std(
             pd.Series(row), 'avg_price_average'
         )
         
@@ -38,7 +64,7 @@ class TestStandardization:
             'number_of_kids': 1
         }
         
-        result = auxiliary_functions.calcular_total_std(
+        result = auxiliary_functions.calculate_price_std(
             pd.Series(row), 'avg_price_average'
         )
         
@@ -55,7 +81,7 @@ class TestStandardization:
             'number_of_kids': 1
         }
         
-        result = auxiliary_functions.calcular_total_std(
+        result = auxiliary_functions.calculate_price_std(
             pd.Series(row), 'avg_price_average'
         )
         
@@ -70,37 +96,37 @@ class TestClassification:
         """Test clasificación Deal."""
         z_score = -1.5
         classification = auxiliary_functions.classify_deal(z_score)
-        assert classification == "Deal"
+        assert classification == config.CLASSIFICATION_LABELS['deal']
     
     def test_classify_good_price(self):
         """Test clasificación Buen Precio."""
         z_score = -0.7
         classification = auxiliary_functions.classify_deal(z_score)
-        assert classification == "Buen Precio"
+        assert classification == config.CLASSIFICATION_LABELS['good_price']
     
     def test_classify_normal(self):
         """Test clasificación Normal."""
         z_score = 0.2
         classification = auxiliary_functions.classify_deal(z_score)
-        assert classification == "Precio Normal"
+        assert classification == config.CLASSIFICATION_LABELS['normal']
     
     def test_classify_expensive(self):
         """Test clasificación Caro."""
         z_score = 0.8
         classification = auxiliary_functions.classify_deal(z_score)
-        assert classification == "Caro"
+        assert classification == config.CLASSIFICATION_LABELS['expensive']
     
     def test_classify_boundary_deal(self):
-        """Test en el límite de Deal."""
+        """Test en el límite de Deal (umbral exclusivo: z < -1.0)."""
         z_score = -1.0
         classification = auxiliary_functions.classify_deal(z_score)
-        assert classification == "Deal"
+        assert classification == config.CLASSIFICATION_LABELS['good_price']
     
     def test_classify_boundary_good(self):
-        """Test en el límite de Buen Precio."""
+        """Test en el límite de Buen Precio (umbral exclusivo: z < -0.5)."""
         z_score = -0.5
         classification = auxiliary_functions.classify_deal(z_score)
-        assert classification == "Buen Precio"
+        assert classification == config.CLASSIFICATION_LABELS['normal']
 
 
 class TestValidation:
@@ -158,9 +184,9 @@ class TestValidation:
 class TestBaselines:
     """Tests de carga de baselines."""
     
-    def test_load_baselines(self):
+    def test_load_baselines(self, baselines_df):
         """Test carga de baselines."""
-        baselines = auxiliary_functions.load_baselines()
+        baselines = baselines_df
         
         assert baselines is not None
         assert len(baselines) > 0
@@ -168,9 +194,9 @@ class TestBaselines:
         assert 'mean_price_std' in baselines.columns
         assert 'std_price_std' in baselines.columns
     
-    def test_baselines_structure(self):
+    def test_baselines_structure(self, baselines_df):
         """Test estructura de baselines."""
-        baselines = auxiliary_functions.load_baselines()
+        baselines = baselines_df
         
         required_cols = [
             'destination_final', 'month', 'week_in_month',
@@ -180,11 +206,10 @@ class TestBaselines:
         for col in required_cols:
             assert col in baselines.columns, f"Falta columna {col}"
     
-    def test_baselines_all_high_confidence(self):
+    def test_baselines_all_high_confidence(self, baselines_df):
         """Test que todos los baselines sean de alta confianza."""
-        baselines = auxiliary_functions.load_baselines()
+        baselines = baselines_df
         
-        # Según nuestro pipeline, todos deberían ser alta confianza
         low_conf_count = baselines['low_confidence'].sum()
         assert low_conf_count == 0, "Todos los baselines deberían ser alta confianza"
 
@@ -192,9 +217,9 @@ class TestBaselines:
 class TestEvaluation:
     """Tests de evaluación de precios."""
     
-    def test_evaluate_nyc_deal(self):
+    def test_evaluate_nyc_deal(self, baselines_df):
         """Test evaluación de un deal en NYC."""
-        baselines = auxiliary_functions.load_baselines()
+        baselines = baselines_df
         
         # NYC, Enero, Semana 2, precio bajo
         result = auxiliary_functions.evaluate_hotel_price(
@@ -205,13 +230,13 @@ class TestEvaluation:
             baselines_df=baselines
         )
         
-        assert result['classification'] == 'Deal'
+        assert result['classification'] == config.CLASSIFICATION_LABELS['deal']
         assert result['z_score'] < -1.0
         assert result['confidence'] == 'high'
     
-    def test_evaluate_nyc_expensive(self):
+    def test_evaluate_nyc_expensive(self, baselines_df):
         """Test evaluación de precio caro en NYC."""
-        baselines = auxiliary_functions.load_baselines()
+        baselines = baselines_df
         
         # NYC, Enero, Semana 2, precio alto
         result = auxiliary_functions.evaluate_hotel_price(
@@ -225,9 +250,9 @@ class TestEvaluation:
         assert result['z_score'] > 0.5
         assert result['confidence'] == 'high'
     
-    def test_evaluate_no_baseline(self):
+    def test_evaluate_no_baseline(self, baselines_df):
         """Test cuando no hay baseline disponible."""
-        baselines = auxiliary_functions.load_baselines()
+        baselines = baselines_df
         
         # Contexto inexistente
         result = auxiliary_functions.evaluate_hotel_price(
@@ -238,7 +263,7 @@ class TestEvaluation:
             baselines_df=baselines
         )
         
-        assert result['classification'] == 'Sin datos'
+        assert result['classification'] == config.CLASSIFICATION_LABELS['insufficient_data']
         assert result['z_score'] is None
         assert result['baseline_info'] is None
 
